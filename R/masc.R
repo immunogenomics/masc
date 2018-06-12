@@ -35,7 +35,8 @@ MASC <- function(data, cluster, contrast, random.effects, fixed.effects, verbose
   # Create output list to hold results
   modelList <- vector(mode = "list", length = nlevels(cluster))
   names(modelList) <- colnames(M)
-  # Run mixed effect model on each cluster
+
+    # Run mixed effect model on each cluster
 
   # Create model formulas
   model.randeff <- paste("(1|", random.effects, ")", sep = "", collapse = " + ")
@@ -56,10 +57,10 @@ MASC <- function(data, cluster, contrast, random.effects, fixed.effects, verbose
   }
   out.df <- data.frame(cluster = colnames(M), cells = colSums(M))
   # Add logistic mixed-effect model p-values and odds ratios for each cluster
-  out.df$masc.pval <- sapply(modelList, function(x) x$anova[["Pr(>Chisq)"]][2])
-  out.df$masc.or <- sapply(modelList, function(x) exp(fixef(x$full)[[contrast.ci]]))
-  out.df$masc.or.lower <- sapply(modelList, function(x) exp(x$confint[contrast.ci, "2.5 %"]))
-  out.df$masc.or.upper <- sapply(modelList, function(x) exp(x$confint[contrast.ci, "97.5 %"]))
+  out.df$model.pvalue <- sapply(modelList, function(x) x$anova[["Pr(>Chisq)"]][2])
+  out.df[[paste(contrast.ci, "OR", sep = ".")]] <- sapply(modelList, function(x) exp(fixef(x$full)[[contrast.ci]]))
+  out.df[[paste(contrast.ci, "OR", "95pct.ci.lower", sep = ".")]] <- sapply(modelList, function(x) exp(x$confint[contrast.ci, "2.5 %"]))
+  out.df[[paste(contrast.ci, "OR", "95pct.ci.upper", sep = ".")]] <- sapply(modelList, function(x) exp(x$confint[contrast.ci, "97.5 %"]))
   return(out.df)
 }
 
