@@ -1,7 +1,7 @@
 # MASC: Mixed-effects association testing for single cells
 MASC is a novel reverse single cell association strategy for testing whether a specified covariate influences the membership of single cells in any of multiple cellular subsets while accounting for technical confounds and biological variation.
 ## Current Version
-MASC 0.1.0
+MASC 0.1.0-alpha
 
 ## Requirements
 MASC is written for **R 3.5**. It requires the following package:
