@@ -1,10 +1,12 @@
 #' MASC - Mixed effect modeling of Associations of Single Cells
 #'
-#' @param data A data frame containing the contrast factor, random, and fixed effects for the model
+#' @param dataset A data frame containing the contrast factor, random, and fixed effects for the model
 #' @param cluster A factor indicating cluster assignments for each cell
-#' @param contrast A vector indicating the factor to be used as a contrast term
-#' @param random.effects A vector indicating which terms should be modeled as random effects covariates
-#' @param fixed.effects A vector indicating wich terms should be modeled as fixed effects covariates
+#' @param contrast A vector indicating the variable to be tested for association with cluster abundance. Must match a column in dataset.
+#' @param random_effects A vector indicating which terms should be modeled as random effects covariates. Terms listed must match columns in dataset.
+#' @param fixed_effects A vector indicating which terms should be modeled as fixed effects covariates. Terms listed must match columns in dataset.
+#' @param save_models Should MASC save the mixed-effects model objects generated for each cluster?
+#' @param save_model_dir Location to save mixed-effect model objects. Defaults to current working directory.
 #' @param verbose TRUE/FALSE
 #'
 #' @return data frame containing calculated association p-values and odds ratios for each cluster tested
@@ -27,41 +29,97 @@
 #' MASC(data = test.df, cluster = test.df$cluster, contrast = "status", random.effects = "donor", fixed.effects = "sex")
 #'
 
-MASC <- function(data, cluster, contrast, random.effects, fixed.effects, verbose = TRUE) {
-  # Create design matrix from cluster assignments
-  M <- model.matrix(~ cluster + 0, data.frame(cluster = cluster))
-  # Combine into data frame with other effect terms
-  df <- cbind(as.data.frame(M), data)
-  # Create output list to hold results
-  modelList <- vector(mode = "list", length = nlevels(cluster))
-  names(modelList) <- colnames(M)
+MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effects = NULL,
+                 verbose = FALSE, save_models = FALSE, save_model_dir = NULL) {
+  # Check inputs
+  if (is.factor(dataset[[contrast]]) == FALSE) {
+    stop("Specified contrast term is not coded as a factor in dataset")
+  }
 
-    # Run mixed effect model on each cluster
+  # Generate design matrix from cluster assignments
+  cluster <- as.character(cluster)
+  designmat <- model.matrix(~ cluster + 0, data.frame(cluster = cluster))
+  dataset <- cbind(designmat, dataset)
 
   # Create model formulas
-  model.randeff <- paste("(1|", random.effects, ")", sep = "", collapse = " + ")
-  model.fixeff <- paste(fixed.effects, collapse = " + ")
-  for (i in 1:nlevels(cluster)) {
-    clusterName <- levels(cluster)[i]
-    message(paste("Creating logistic mixed models for", clusterName))
-    null.model <- as.formula(paste(paste("cluster", clusterName, " ~ 1", sep = ""), model.fixeff, model.randeff, sep = " + "))
-    full.model <- as.formula(paste(paste("cluster", clusterName, " ~ ", contrast, sep = ""), model.fixeff, model.randeff, sep = " + "))
-    modelList[[i]]$null <- glmer(formula = null.model, data = df, family = binomial,
-                                 control = glmerControl(optimizer = "bobyqa") ,nAGQ = 1,  verbose = 0)
-    modelList[[i]]$full <- glmer(formula = full.model, data = df, family = binomial,
-                                 control = glmerControl(optimizer = "bobyqa") ,nAGQ = 1,  verbose = 0)
-    modelList[[i]]$anova <- anova(modelList[[i]]$null, modelList[[i]]$full)
-    # calculate confidence intervals for the case-control beta
-    contrast.ci <- paste(contrast, levels(data[[contrast]])[2], sep = "")
-    modelList[[i]]$confint <- confint.merMod(modelList[[i]]$full, parm = contrast.ci, method = "Wald", devtol = 1e-6)
+  if (!is.null(fixed_effects) && !is.null(random_effects)) {
+    model_rhs <- paste0(c(paste0(fixed_effects, collapse = " + "),
+                          paste0("(1|", random_effects, ")", collapse = " + ")),
+                        collapse = " + ")
+    if (verbose == TRUE) {
+      message(paste("Using null model:", "cluster ~", model_rhs))
+    }
+  } else if (!is.null(fixed_effects) && is.null(random_effects)) {
+    model_rhs <- paste0(fixed_effects, collapse = " + ")
+    if (verbose == TRUE) {
+      message(paste("Using null model:", "cluster ~", model_rhs))
+      # For now, do not allow models without mixed effects terms
+      stop("No random effects specified")
+    }
+  } else if (is.null(fixed_effects) && !is.null(random_effects)) {
+    model_rhs <- paste0("(1|", random_effects, ")", collapse = " + ")
+    if (verbose == TRUE) {
+      message(paste("Using null model:", "cluster ~", model_rhs))
+    }
+  } else {
+    model_rhs <- "1" # only includes intercept
+    if (verbose == TRUE) {
+      message(paste("Using null model:", "cluster ~", model_rhs))
+      stop("No random or fixed effects specified")
+    }
   }
-  out.df <- data.frame(cluster = colnames(M), cells = colSums(M))
-  # Add logistic mixed-effect model p-values and odds ratios for each cluster
-  out.df$model.pvalue <- sapply(modelList, function(x) x$anova[["Pr(>Chisq)"]][2])
-  out.df[[paste(contrast.ci, "OR", sep = ".")]] <- sapply(modelList, function(x) exp(fixef(x$full)[[contrast.ci]]))
-  out.df[[paste(contrast.ci, "OR", "95pct.ci.lower", sep = ".")]] <- sapply(modelList, function(x) exp(x$confint[contrast.ci, "2.5 %"]))
-  out.df[[paste(contrast.ci, "OR", "95pct.ci.upper", sep = ".")]] <- sapply(modelList, function(x) exp(x$confint[contrast.ci, "97.5 %"]))
-  return(out.df)
+
+
+  # Initialize list to store model objects for each cluster
+  cluster_models <- vector(mode = "list",
+                           length = length(attributes(designmat)$dimnames[[2]]))
+  names(cluster_models) <- attributes(designmat)$dimnames[[2]]
+
+  # Run nested mixed-effects models for each cluster
+  for (i in seq_along(attributes(designmat)$dimnames[[2]])) {
+    test_cluster <- attributes(designmat)$dimnames[[2]][i]
+    if (verbose == TRUE) {
+      message(paste("Creating logistic mixed models for", test_cluster))
+    }
+    null_fm <- as.formula(paste0(c(paste0(test_cluster, " ~ 1 + "),
+                                   model_rhs), collapse = ""))
+    full_fm <- as.formula(paste0(c(paste0(test_cluster, " ~ ", contrast, " + "),
+                                   model_rhs), collapse = ""))
+    # Run null and full mixed-effects models
+    null_model <- lme4::glmer(formula = null_fm, data = dataset,
+                              family = binomial, nAGQ = 1, verbose = 0,
+                              control = glmerControl(optimizer = "bobyqa"))
+    full_model <- lme4::glmer(formula = full_fm, data = dataset,
+                              family = binomial, nAGQ = 1, verbose = 0,
+                              control = glmerControl(optimizer = "bobyqa"))
+    model_lrt <- anova(null_model, full_model)
+    # calculate confidence intervals for contrast term beta
+    contrast_lvl2 <- paste0(contrast, levels(dataset[[contrast]])[2])
+    contrast_ci <- confint.merMod(full_model, method = "Wald",
+                                  parm = contrast_lvl2)
+    # Save model objects to list
+    cluster_models[[i]]$null_model <- null_model
+    cluster_models[[i]]$full_model <- full_model
+    cluster_models[[i]]$model_lrt <- model_lrt
+    cluster_models[[i]]$confint <- contrast_ci
+  }
+
+  # Organize results into output dataframe
+  output <- data.frame(cluster = attributes(designmat)$dimnames[[2]],
+                       size = colSums(designmat))
+  output$model.pvalue <- sapply(cluster_models, function(x) x$model_lrt[["Pr(>Chisq)"]][2])
+  output[[paste(contrast_lvl2, "OR", sep = ".")]] <- sapply(cluster_models, function(x) exp(fixef(x$full)[[contrast_lvl2]]))
+  output[[paste(contrast_lvl2, "OR", "95pct.ci.lower", sep = ".")]] <- sapply(cluster_models, function(x) exp(x$confint[contrast_lvl2, "2.5 %"]))
+  output[[paste(contrast_lvl2, "OR", "95pct.ci.upper", sep = ".")]] <- sapply(cluster_models, function(x) exp(x$confint[contrast_lvl2, "97.5 %"]))
+
+  # Return MASC results and save models if specified
+  if (save_models == TRUE) {
+    saveModelObj(cluster_models, save_dir = save_model_dir)
+    return(output)
+  } else {
+    return(output)
+  }
 }
+
 
 
