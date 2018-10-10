@@ -78,7 +78,6 @@ MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effect
     }
   }
 
-
   # Initialize list to store model objects for each cluster
   cluster_models <- vector(mode = "list",
                            length = length(attributes(designmat)$dimnames[[2]]))
