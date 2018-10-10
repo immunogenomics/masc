@@ -35,13 +35,11 @@ MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effect
   if (is.factor(dataset[[contrast]]) == FALSE) {
     stop("Specified contrast term is not coded as a factor in dataset")
   }
-<<<<<<< HEAD
 
   # Generate design matrix from cluster assignments
   cluster <- as.character(cluster)
   designmat <- model.matrix(~ cluster + 0, data.frame(cluster = cluster))
   dataset <- cbind(designmat, dataset)
-=======
 
   # Convert cluster assignments to string
   cluster <- as.character(cluster)
@@ -51,8 +49,6 @@ MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effect
   # Create output list to hold results
   res <- vector(mode = "list", length = length(unique(cluster)))
   names(res) <- attributes(designmat)$dimnames[[2]]
-
->>>>>>> 62d82757dcadb3a437bb3171b8b893f2ebd1a8a0
 
   # Create model formulas
   if (!is.null(fixed_effects) && !is.null(random_effects)) {
@@ -88,10 +84,7 @@ MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effect
                            length = length(attributes(designmat)$dimnames[[2]]))
   names(cluster_models) <- attributes(designmat)$dimnames[[2]]
 
-<<<<<<< HEAD
   # Run nested mixed-effects models for each cluster
-=======
->>>>>>> 62d82757dcadb3a437bb3171b8b893f2ebd1a8a0
   for (i in seq_along(attributes(designmat)$dimnames[[2]])) {
     test_cluster <- attributes(designmat)$dimnames[[2]][i]
     if (verbose == TRUE) {
@@ -127,10 +120,7 @@ MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effect
   output[[paste(contrast_lvl2, "OR", sep = ".")]] <- sapply(cluster_models, function(x) exp(fixef(x$full)[[contrast_lvl2]]))
   output[[paste(contrast_lvl2, "OR", "95pct.ci.lower", sep = ".")]] <- sapply(cluster_models, function(x) exp(x$confint[contrast_lvl2, "2.5 %"]))
   output[[paste(contrast_lvl2, "OR", "95pct.ci.upper", sep = ".")]] <- sapply(cluster_models, function(x) exp(x$confint[contrast_lvl2, "97.5 %"]))
-<<<<<<< HEAD
 
-=======
->>>>>>> 62d82757dcadb3a437bb3171b8b893f2ebd1a8a0
   # Return MASC results and save models if specified
   if (save_models == TRUE) {
     saveModelObj(cluster_models, save_dir = save_model_dir)
