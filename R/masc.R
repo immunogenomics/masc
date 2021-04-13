@@ -26,7 +26,7 @@
 #' test.df <- cbind(rbind(cases[1:75,], controls[1:25,], cases[76:115,], controls[26:85,], cases[116:150,], controls[86:150,]), test.df)
 #' # Test set call
 #' library(lme4)
-#' MASC(data = test.df, cluster = test.df$cluster, contrast = "status", random.effects = "donor", fixed.effects = "sex")
+#' MASC(data = test.df, cluster = test.df$cluster, contrast = "status", random_effects = "donor", fixed_effects = "sex")
 #'
 
 MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effects = NULL,
