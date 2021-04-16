@@ -4,7 +4,7 @@ test.df <- data.frame(cluster = factor(rep(c(1, 2, 3), each = 100)))
 # Create 6 donors that are cases or controls
 donors.df <- data.frame(donor = rep(paste("Donor", LETTERS[1:6], sep = "_"), each = 50),
                         sex = rep(c("M", "F", "M", "F", "F", "M"), each = 50),
-                        status = rep(c("Case", "Case", "Control", "Control", "Case", "Control"), each = 50))
+                        status = factor(rep(c("Case", "Case", "Control", "Control", "Case", "Control"), each = 50)))
 
 # Now make cluster 1 mostly case, cluster 2 mostly controls, etc
 cases <- donors.df[donors.df$status == "Case",]
