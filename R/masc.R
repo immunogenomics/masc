@@ -8,6 +8,7 @@
 #' @param save_models Should MASC save the mixed-effects model objects generated for each cluster?
 #' @param save_model_dir Location to save mixed-effect model objects. Defaults to current working directory.
 #' @param verbose TRUE/FALSE
+#' @param weights (optional) give weights to observations. Particularly useful if observations are not unique. 
 #'
 #' @return data frame containing calculated association p-values and odds ratios for each cluster tested
 #'
@@ -28,12 +29,14 @@
 #' library(lme4)
 #' MASC(data = test.df, cluster = test.df$cluster, contrast = "status", random_effects = "donor", fixed_effects = "sex")
 #'
-
 MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effects = NULL,
-                 verbose = FALSE, save_models = FALSE, save_model_dir = NULL) {
+                 verbose = FALSE, save_models = FALSE, save_model_dir = NULL, weights = NULL) {
   # Check inputs
   if (is.factor(dataset[[contrast]]) == FALSE) {
     stop("Specified contrast term is not coded as a factor in dataset")
+  }
+  if (is.null(weights)) {
+      weights <- rep(1, nrow(dataset))
   }
 
   # Generate design matrix from cluster assignments
@@ -96,10 +99,10 @@ MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effect
     # Run null and full mixed-effects models
     null_model <- lme4::glmer(formula = null_fm, data = dataset,
                               family = binomial, nAGQ = 1, verbose = 0,
-                              control = glmerControl(optimizer = "bobyqa"))
+                              control = glmerControl(optimizer = "bobyqa"), weights = weights)
     full_model <- lme4::glmer(formula = full_fm, data = dataset,
                               family = binomial, nAGQ = 1, verbose = 0,
-                              control = glmerControl(optimizer = "bobyqa"))
+                              control = glmerControl(optimizer = "bobyqa"), weights = weights)
     model_lrt <- anova(null_model, full_model)
     # calculate confidence intervals for contrast term beta
     contrast_lvl2 <- paste0(contrast, levels(dataset[[contrast]])[2])
@@ -128,6 +131,7 @@ MASC <- function(dataset, cluster, contrast, random_effects = NULL, fixed_effect
     return(output)
   }
 }
+
 
 
 
